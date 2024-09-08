@@ -1,10 +1,16 @@
 package com.momentousmoss.tz_github_client;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
@@ -14,77 +20,160 @@ import org.kohsuke.github.GHMyself;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 import org.kohsuke.github.GitHubBuilder;
+import org.kohsuke.github.HttpException;
 
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class MainActivity extends Activity {
 
-//    String access_token = "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";
-
-    String personal_token = "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";
-    String userLogin = "TestTZ123Name";
-    String userId = "180656150";
-    String userMail = "atlassianfortest1@gmail.com";
-    String userPassword = "TestTZ123";
-    String UserNodeId = "U_kgDOCsSYFg";
-
-    String appId = "990205";
-    String clientId = "Iv23ctj7JYTegy7Cc2Rm";
-    String clientSecret = "1b0957a46c1fb216472e277fdc7610a6cc144ba0";
-    String note = "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";
-    String note_url = "https://github.com/settings/tokens/1745338480";
-    String[] scopes = {""};
-
-    AsyncTask<Object, Object, Integer> asyncLoadTask = new AsyncLoad();
+    String accessToken = "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";
+    EditText loginTokenEditText;
+    AsyncTask<Object, Object, Integer> asyncLoadTask = new AsyncLoadTask();
     public List<Repository> repositories = new ArrayList<>();
-    public RepositoriesAdapter adapter = new RepositoriesAdapter(repositories);
+    public RepositoriesAdapter repositoriesAdapter = new RepositoriesAdapter(repositories);
+    private Settings settings;
+
+    final Integer LOAD_SUCCESSFUL = 1;
+    final Integer LOAD_CONNECTION_PROBLEM = -1;
+    final Integer LOAD_SERVER_PROBLEM = -2;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_layout);
-
+        loginTokenEditText = findViewById(R.id.login_token_edit_text);
         setRepositoriesAdapter();
-        asyncLoadTask.execute();
+        loadSharedPreferencesSettings();
+        setLoginButtonAction();
     }
 
-    class AsyncLoad extends AsyncTask<Object, Object, Integer> {
+    private void loadSharedPreferencesSettings() {
+        settings = new Settings(getBaseContext());
+        accessToken = settings.getAccessToken();
+        if (!accessToken.isEmpty()) {
+            loginTokenEditText.setText(accessToken);
+        }
+    }
+
+    private void setLoginButtonAction() {
+        findViewById(R.id.login_button).setOnClickListener((v -> loginAction()));
+    }
+
+    private void loginAction() {
+        hideLoginView();
+        asyncLoadTask.cancel(false);
+        repositories.clear();
+        repositoriesAdapter.notifyItemRangeChanged(0, repositories.size() - 1);
+        accessToken = loginTokenEditText.getText().toString();
+        asyncLoadTask = new AsyncLoadTask().execute();
+    }
+
+    class AsyncLoadTask extends AsyncTask<Object, Object, Integer> {
         @Override
         protected Integer doInBackground(Object... arg) {
             try {
                 GitHub gitHub = authorize();
-                GHMyself userData = getUserData(gitHub);
-
-                Map<String, GHRepository> repos = getRepositories(userData);
-                setReposData(repos);
-
-                Bitmap avatar = loadAvatar(userData);
-                setAvatar(avatar);
+                if (gitHub.isCredentialValid()) {
+                    settings.saveAccessToken(accessToken);
+                    GHMyself userData = getUserData(gitHub);
+                    Map<String, GHRepository> repos = getRepositories(userData);
+                    setReposData(repos);
+                } else {
+                    return checkConnection(gitHub);
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            return null;
+            return LOAD_SUCCESSFUL;
         }
 
         @Override
-        protected void onPostExecute(Integer numb) {
-            super.onPostExecute(numb);
-            adapter.notifyDataSetChanged();
+        protected void onPostExecute(Integer response) {
+            super.onPostExecute(response);
+            if (Objects.equals(response, LOAD_SUCCESSFUL)) {
+                repositoriesAdapter.notifyItemRangeChanged(0, repositories.size() - 1);
+                hideLoaderView();
+            } else {
+                showLoginView();
+                showConnectionProblemToast(response);
+            }
         }
+    }
+
+    private void showConnectionProblemToast(Integer numb) {
+        String toastMessage;
+        if (Objects.equals(numb, LOAD_CONNECTION_PROBLEM)) {
+            toastMessage = getString(R.string.toast_connection_problem);
+        } else if (Objects.equals(numb, LOAD_SERVER_PROBLEM)) {
+            toastMessage = getString(R.string.toast_server_problem);
+        } else {
+            toastMessage = getString(R.string.toast_token_problem);
+        }
+        Toast.makeText(getBaseContext(), toastMessage, Toast.LENGTH_LONG).show();
+    }
+
+    private Integer checkConnection(GitHub gitHub) {
+        Integer availableConnection = checkAvailableConnection();
+        if (availableConnection == null) {
+            return checkServerConnection(gitHub);
+        } else {
+            return availableConnection;
+        }
+    }
+
+    private Integer checkAvailableConnection() {
+        boolean isConnected = false;
+        ConnectivityManager connectivityManager = (ConnectivityManager) getBaseContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager != null ? connectivityManager.getActiveNetworkInfo() : null;
+        if (activeNetworkInfo != null) isConnected = activeNetworkInfo.isConnectedOrConnecting();
+        if (!isConnected) return LOAD_CONNECTION_PROBLEM;
+        return null;
+    }
+
+    private Integer checkServerConnection(GitHub gitHub) {
+        try {
+            gitHub.checkApiUrlValidity();
+        } catch (IOException e) {
+            if (Objects.requireNonNull(e.getMessage()).contains(getString(R.string.server_connection_check_response))) {
+                return LOAD_SERVER_PROBLEM;
+            }
+        }
+        return null;
+    }
+
+    private void hideLoginView() {
+        findViewById(R.id.login_container).setVisibility(View.GONE);
+        findViewById(R.id.closed_captions).setVisibility(View.GONE);
+        showLoaderView();
+    }
+
+    private void showLoginView() {
+        findViewById(R.id.login_container).setVisibility(View.VISIBLE);
+        findViewById(R.id.closed_captions).setVisibility(View.VISIBLE);
+        hideLoaderView();
+    }
+
+    private void hideLoaderView() {
+        findViewById(R.id.loader_layout).setVisibility(View.GONE);
+    }
+
+    private void showLoaderView() {
+        findViewById(R.id.loader_layout).setVisibility(View.VISIBLE);
     }
 
     private void setRepositoriesAdapter() {
         RecyclerView repositoriesRecyclerView = findViewById(R.id.rv_repositories_list);
-        repositoriesRecyclerView.setAdapter(adapter);
+        repositoriesRecyclerView.setAdapter(repositoriesAdapter);
     }
 
     private GitHub authorize() throws IOException {
-        return new GitHubBuilder().withAppInstallationToken(access_token).build();
+        return new GitHubBuilder().withAppInstallationToken(accessToken).build();
     }
 
     private GHMyself getUserData(GitHub gitHub) throws IOException {
@@ -98,46 +187,50 @@ public class MainActivity extends Activity {
     private void setReposData(Map<String, GHRepository> repos) throws IOException {
         GHRepository[] repositoriesArray = repos.values().toArray(new GHRepository[0]);
         for (GHRepository repository : repositoriesArray) {
-            String repositoryName = repository.getName();
-            String repositoryDescription = repository.getDescription();
-            String repositoryAuthor = repository.getOwnerName();
-            int repositoryForksCount = repository.getForksCount();
-            int repositoryWatchesCount = repository.getWatchersCount();
-
-            List<GHCommit> repositoryCommits = repository.listCommits().toList();
-            setCommitsData(repositoryCommits);
-
+            List<Commit> repositoryCommits;
+            try {
+                repositoryCommits = getRepositoryCommits(repository.listCommits().toList());
+            } catch (HttpException e) {
+                if (Objects.requireNonNull(e.getMessage()).contains(getString(R.string.repository_null_data_check_response))) {
+                    repositoryCommits = Collections.emptyList();
+                } else {
+                    throw new RuntimeException(e);
+                }
+            }
             Repository repositoryObject = new Repository(
-                    repositoryName,
-                    repositoryDescription,
-                    repositoryForksCount,
-                    repositoryWatchesCount,
-                    repositoryAuthor,
-                    null
+                    repository.getName(),
+                    repository.getDescription(),
+                    repository.getForksCount(),
+                    repository.getWatchersCount(),
+                    repository.getOwnerName(),
+                    loadAvatar(repository.getOwner().getAvatarUrl()),
+                    repositoryCommits
             );
             repositories.add(repositoryObject);
         }
     }
 
-    private void setCommitsData(List<GHCommit> repositoryCommits) throws IOException {
+    private List<Commit> getRepositoryCommits(List<GHCommit> repositoryCommits) throws IOException {
+        List<Commit> commits = new ArrayList<>();
         for (GHCommit commit : repositoryCommits) {
-            String hash = commit.getSHA1();
-            String shortMessage = commit.getCommitShortInfo().getMessage();
-            String author = "";
+            String commitAuthor = "";
             if (commit.getAuthor() != null && commit.getAuthor().getLogin() != null) {
-                author = commit.getAuthor().getLogin();
+                commitAuthor = commit.getAuthor().getLogin();
             }
-            Date date = commit.getCommitDate();
+            Commit commitObject = new Commit(
+                    commitAuthor,
+                    commit.getCommitDate().toString(),
+                    commit.getCommitShortInfo().getMessage(),
+                    commit.getSHA1()
+            );
+            commits.add(commitObject);
         }
+        return commits;
     }
 
-    private Bitmap loadAvatar(GHMyself userData) throws IOException {
-        URL url = new URL(userData.getAvatarUrl());
-        return BitmapFactory.decodeStream(url.openConnection().getInputStream());
-    }
-
-    private void setAvatar(Bitmap avatar) {
-
+    private Bitmap loadAvatar(String avatarUrlString) throws IOException {
+        URL avatarUrl = new URL(avatarUrlString);
+        return BitmapFactory.decodeStream(avatarUrl.openConnection().getInputStream());
     }
 
 }

@@ -1,3 +1,25 @@
 <resources>
     <string name="app_name">tz_github_client</string>
+
+    <string name="toast_connection_problem">Проверьте соединение с интернетом или повторите попытку позже</string>
+    <string name="toast_server_problem">Проверьте соединение с сервером или повторите попытку позже</string>
+    <string name="toast_token_problem">Проверьте правильность введёного токена</string>
+    <string name="server_connection_check_response">"response code: -1"</string>
+    <string name="repository_null_data_check_response">Git Repository is empty</string>
+
+    <string name="layout_main_login_token_edit_text_hint">Insert GitHub access token</string>
+    <string name="layout_main_login_button_text">Login</string>
+    <string name="layout_main_token_creation_path"><b>Already inserted <u>test token</u> \n\nCreate new:</b>\nGithub -> Settings -> Developer Settings -> Personal access tokens -> Fine-grained tokens \n<b>or</b>\nhttps://github.com/settings/tokens?type=beta
+    </string>
+
+    <string name="layout_repository_name">RepoName: %1$s</string>
+    <string name="layout_repository_description">RepoDescription: %1$s</string>
+    <string name="layout_repository_forks">Forks: %1$s</string>
+    <string name="layout_repository_watches">Watches: %1$s</string>
+    <string name="layout_repository_author">Created by: \n%1$s</string>
+
+    <string name="layout_commit_author">Author: %1$s</string>
+    <string name="layout_commit_date">Date: %1$s</string>
+    <string name="layout_commit_short_message">ShortMessage: %1$s</string>
+    <string name="layout_commit_hash">Hash: %1$s</string>
 </resources>
