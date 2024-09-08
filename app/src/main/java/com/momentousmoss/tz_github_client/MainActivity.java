@@ -1,12 +1,13 @@
 package com.momentousmoss.tz_github_client;
 
+import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
 
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHMyself;
@@ -16,13 +17,14 @@ import org.kohsuke.github.GitHubBuilder;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
 
-    String access_token = "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";
+//    String access_token = "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";
 
     String personal_token = "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";
     String userLogin = "TestTZ123Name";
@@ -38,11 +40,22 @@ public class MainActivity extends AppCompatActivity {
     String note_url = "https://github.com/settings/tokens/1745338480";
     String[] scopes = {""};
 
+    AsyncTask<Object, Object, Integer> asyncLoadTask = new AsyncLoad();
+    public List<Repository> repositories = new ArrayList<>();
+    public RepositoriesAdapter adapter = new RepositoriesAdapter(repositories);
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main_layout);
-        Thread task = new Thread(() -> {
+
+        setRepositoriesAdapter();
+        asyncLoadTask.execute();
+    }
+
+    class AsyncLoad extends AsyncTask<Object, Object, Integer> {
+        @Override
+        protected Integer doInBackground(Object... arg) {
             try {
                 GitHub gitHub = authorize();
                 GHMyself userData = getUserData(gitHub);
@@ -55,8 +68,19 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        });
-        task.start();
+            return null;
+        }
+
+        @Override
+        protected void onPostExecute(Integer numb) {
+            super.onPostExecute(numb);
+            adapter.notifyDataSetChanged();
+        }
+    }
+
+    private void setRepositoriesAdapter() {
+        RecyclerView repositoriesRecyclerView = findViewById(R.id.rv_repositories_list);
+        repositoriesRecyclerView.setAdapter(adapter);
     }
 
     private GitHub authorize() throws IOException {
@@ -82,6 +106,16 @@ public class MainActivity extends AppCompatActivity {
 
             List<GHCommit> repositoryCommits = repository.listCommits().toList();
             setCommitsData(repositoryCommits);
+
+            Repository repositoryObject = new Repository(
+                    repositoryName,
+                    repositoryDescription,
+                    repositoryForksCount,
+                    repositoryWatchesCount,
+                    repositoryAuthor,
+                    null
+            );
+            repositories.add(repositoryObject);
         }
     }
 
@@ -89,7 +123,10 @@ public class MainActivity extends AppCompatActivity {
         for (GHCommit commit : repositoryCommits) {
             String hash = commit.getSHA1();
             String shortMessage = commit.getCommitShortInfo().getMessage();
-            String author = commit.getAuthor().getLogin();
+            String author = "";
+            if (commit.getAuthor() != null && commit.getAuthor().getLogin() != null) {
+                author = commit.getAuthor().getLogin();
+            }
             Date date = commit.getCommitDate();
         }
     }
