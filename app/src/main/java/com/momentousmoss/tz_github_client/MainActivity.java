@@ -54,6 +54,8 @@ public class MainActivity extends Activity {
     }
 
     private void loadSharedPreferencesSettings() {
+        loginTokenEditText.setText(accessToken); //just for tests
+
         settings = new Settings(getBaseContext());
         accessToken = settings.getAccessToken();
         if (!accessToken.isEmpty()) {
