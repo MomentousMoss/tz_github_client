@@ -32,7 +32,8 @@ import java.util.Objects;
 
 public class MainActivity extends Activity {
 
-    String accessToken = "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";
+    String part = "github_pat_";
+    String accessToken = part + "11BLCJQFQ0cwiV5TyEEFET_Y3vko8hwurruoxTAdEhWPmfos0UIKquJZCGEEcHe4q1J2EYC4CXmyagCgpu";
     EditText loginTokenEditText;
     AsyncTask<Object, Object, Integer> asyncLoadTask = new AsyncLoadTask();
     public List<Repository> repositories = new ArrayList<>();

@@ -22,7 +22,7 @@
             android:layout_gravity="center_horizontal"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             android:weightSum="1">
 
             <TextView
